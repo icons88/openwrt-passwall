@@ -26,17 +26,23 @@ table td, .table .td {
 }
 
 ._now_use {
-	color: red !important;
+	background: #94e1ff !important;
 }
 
 .ping a:hover{
 	text-decoration : underline;
 }
+
+@media (prefers-color-scheme: dark) {
+    ._now_use {
+        background: #4a90e2 !important;
+    }
+}
 </style>
 
 <script type="text/javascript">
 	//<![CDATA[
-	let auto_detection_time = "<%=api.uci_get_type("@global_other[0]", "auto_detection_time", "0")%>"
+	let auto_detection_time = "<%=api.uci_get_type("global_other", "auto_detection_time", "0")%>"
 	
 	var node_list = {};
 	var node_count = 0;
@@ -211,28 +217,18 @@ table td, .table .td {
 				if (id) {
 					var dom = document.getElementById("cbi-passwall-" + id);
 					if (dom) {
-						dom.title = "当前使用的 TCP 节点";
+						dom.classList.add("_now_use");
+						dom.title = "当前TCP节点";
 						//var v = "<a style='color: red'>当前TCP节点：</a>" + document.getElementById("cbid.passwall." + id + ".remarks").value;
 						//document.getElementById("cbi-passwall-" + id + "-remarks").innerHTML = v;
-						var dom_remarks = document.getElementById("cbi-passwall-" + id + "-remarks");
-						if (dom_remarks) {
-							dom_remarks.classList.add("_now_use");
-						}
 					}
 				}
 				id = result["UDP"];
 				if (id) {
 					var dom = document.getElementById("cbi-passwall-" + id);
 					if (dom) {
-						if (result["TCP"] == result["UDP"]) {
-							dom.title = "当前使用的 TCP/UDP 节点";
-						} else {
-							dom.title = "当前使用的 UDP 节点";
-						}
-						var dom_remarks = document.getElementById("cbi-passwall-" + id + "-remarks");
-						if (dom_remarks) {
-							dom_remarks.classList.add("_now_use");
-						}
+						dom.classList.add("_now_use");
+						dom.title = "当前UDP节点";
 					}
 				}
 			}
@@ -299,6 +295,8 @@ table td, .table .td {
 			);
 		}
 	}
+	
+	get_now_use_node();
 
 	/* 自动Ping */
 	if (auto_detection_time == "icmp" || auto_detection_time == "tcping") {
@@ -419,8 +417,6 @@ table td, .table .td {
 			console.error(err);
 		}
 	}
-	
-	get_now_use_node();
 
 	if (true) {
 		var str = "";
