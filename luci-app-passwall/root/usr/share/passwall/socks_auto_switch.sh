@@ -28,10 +28,9 @@ test_url() {
 	local timeout=2
 	[ -n "$3" ] && timeout=$3
 	local extra_params=$4
-	if /usr/bin/curl --help all | grep -q "\-\-retry-all-errors"; then
-		extra_params="--retry-all-errors ${extra_params}"
-	fi
-	status=$(/usr/bin/curl -I -o /dev/null -skL ${extra_params} --connect-timeout ${timeout} --retry ${try} -w %{http_code} "$url")
+	curl --help all | grep "\-\-retry-all-errors" > /dev/null
+	[ $? == 0 ] && extra_params="--retry-all-errors ${extra_params}"
+	status=$(/usr/bin/curl -I -o /dev/null -skL --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36" ${extra_params} --connect-timeout ${timeout} --retry ${try} -w %{http_code} "$url")
 	case "$status" in
 		204)
 			status=200
@@ -69,11 +68,8 @@ test_node() {
 		local curlx="socks5h://127.0.0.1:${_tmp_port}"
 		sleep 1s
 		_proxy_status=$(test_url "${probe_url}" ${retry_num} ${connect_timeout} "-x $curlx")
-		# 结束 SS 插件进程
-		local pid_file="/tmp/etc/${CONFIG}/test_node_${node_id}_plugin.pid"
-		[ -s "$pid_file" ] && kill -9 "$(head -n 1 "$pid_file")" >/dev/null 2>&1
 		pgrep -af "test_node_${node_id}" | awk '! /socks_auto_switch\.sh/{print $1}' | xargs kill -9 >/dev/null 2>&1
-		rm -rf /tmp/etc/${CONFIG}/test_node_${node_id}*.*
+		rm -rf "/tmp/etc/${CONFIG}/test_node_${node_id}.json"
 		if [ "${_proxy_status}" -eq 200 ]; then
 			return 0
 		fi
