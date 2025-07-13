@@ -1,10 +1,9 @@
 local api = require "luci.passwall.api"
-local uci = api.uci
 local appname = "passwall"
 local has_ss = api.is_finded("ss-redir")
 local has_ss_rust = api.is_finded("sslocal")
 local has_trojan_plus = api.is_finded("trojan-plus")
-local has_singbox = api.finded_com("sing-box")
+local has_singbox = api.finded_com("singbox")
 local has_xray = api.finded_com("xray")
 local has_hysteria2 = api.finded_com("hysteria")
 local ss_type = {}
@@ -45,26 +44,6 @@ if has_hysteria2 then
 end
 
 m = Map(appname)
-
-function m.commit_handler(self)
-	if self.no_commit then
-		return
-	end
-	self.uci:foreach(appname, "subscribe_list", function(e)
-		self:del(e[".name"], "md5")
-	end)
-end
-
-if api.is_js_luci() then
-	m.apply_on_parse = false
-	m.on_after_apply = function(self)
-		uci:foreach(appname, "subscribe_list", function(e)
-			uci:delete(appname, e[".name"], "md5")
-		end)
-		uci:commit(appname)
-		api.showMsg_Redirect()
-	end
-end
 
 -- [[ Subscribe Settings ]]--
 s = m:section(TypedSection, "global_subscribe", "")
@@ -134,19 +113,16 @@ o:value("ipv4_only", translate("IPv4 Only"))
 o:value("ipv6_only", translate("IPv6 Only"))
 
 ---- Subscribe Delete All
-o = s:option(DummyValue, "_stop", translate("Delete All Subscribe Node"))
-o.rawhtml = true
-function o.cfgvalue(self, section)
-	return string.format(
-		[[<button type="button" class="cbi-button cbi-button-remove" onclick="return confirmDeleteAll()">%s</button>]],
-		translate("Delete All Subscribe Node"))
+o = s:option(Button, "_stop", translate("Delete All Subscribe Node"))
+o.inputstyle = "remove"
+function o.write(e, e)
+	luci.sys.call("lua /usr/share/" .. appname .. "/subscribe.lua truncate > /dev/null 2>&1")
 end
 
 o = s:option(Button, "_update", translate("Manual subscription All"))
 o.inputstyle = "apply"
 function o.write(t, n)
 	luci.sys.call("lua /usr/share/" .. appname .. "/subscribe.lua start > /dev/null 2>&1 &")
-	m.no_commit = true
 	luci.http.redirect(api.url("log"))
 end
 
@@ -157,7 +133,6 @@ s.sortable = true
 s.template = "cbi/tblsection"
 s.extedit = api.url("node_subscribe_config", "%s")
 function s.create(e, t)
-	m.no_commit = true
 	local id = TypedSection.create(e, t)
 	luci.http.redirect(e.extedit:format(id))
 end
@@ -180,46 +155,35 @@ o.validate = function(self, value, t)
 	end
 end
 
-o = s:option(DummyValue, "_node_count", translate("Subscribe Info"))
+o = s:option(DummyValue, "_node_count")
 o.rawhtml = true
 o.cfgvalue = function(t, n)
 	local remark = m:get(n, "remark") or ""
-	local str = m:get(n, "rem_traffic") or ""
-	local expired_date = m:get(n, "expired_date") or ""
-	if expired_date ~= "" then
-		str = str .. (str ~= "" and "/" or "") .. expired_date
-	end
-	str = str ~= "" and "<br>" .. str or ""
 	local num = 0
 	m.uci:foreach(appname, "nodes", function(s)
 		if s["add_from"] ~= "" and s["add_from"] == remark then
 			num = num + 1
 		end
 	end)
-	return string.format("%s%s", translate("Node num") .. ": " .. num, str)
+	return string.format("<span title='%s' style='color:red'>%s</span>", remark .. " " .. translate("Node num") .. ": " .. num, num)
 end
 
 o = s:option(Value, "url", translate("Subscribe URL"))
 o.width = "auto"
 o.rmempty = false
 
-o = s:option(DummyValue, "_remove", translate("Delete the subscribed node"))
-o.rawhtml = true
-function o.cfgvalue(self, section)
-	local remark = m:get(section, "remark") or ""
-	return string.format(
-		[[<button type="button" class="cbi-button cbi-button-remove" onclick="return confirmDeleteNode('%s')">%s</button>]],
-		remark, translate("Delete the subscribed node"))
+o = s:option(Button, "_remove", translate("Delete the subscribed node"))
+o.inputstyle = "remove"
+function o.write(t, n)
+	local remark = m:get(n, "remark") or ""
+	luci.sys.call("lua /usr/share/" .. appname .. "/subscribe.lua truncate " .. remark .. " > /dev/null 2>&1")
 end
 
 o = s:option(Button, "_update", translate("Manual subscription"))
 o.inputstyle = "apply"
 function o.write(t, n)
 	luci.sys.call("lua /usr/share/" .. appname .. "/subscribe.lua start " .. n .. " > /dev/null 2>&1 &")
-	m.no_commit = true
 	luci.http.redirect(api.url("log"))
 end
-
-s:append(Template(appname .. "/node_subscribe/js"))
 
 return m

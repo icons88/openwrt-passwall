@@ -1,31 +1,9 @@
 local api = require "luci.passwall.api"
-local uci = api.uci
 local appname = "passwall"
-
-m = Map(appname)
-m.redirect = api.url("node_subscribe")
-
-if not arg[1] or not m:get(arg[1]) then
-	luci.http.redirect(m.redirect)
-end
-
-function m.commit_handler(self)
-	self:del(arg[1], "md5")
-end
-
-if api.is_js_luci() then
-	m.apply_on_parse = false
-	m.on_after_apply = function(self)
-		uci:delete(appname, arg[1], "md5")
-		uci:commit(appname)
-		api.showMsg_Redirect(self.redirect, 3000)
-	end
-end
-
 local has_ss = api.is_finded("ss-redir")
 local has_ss_rust = api.is_finded("sslocal")
 local has_trojan_plus = api.is_finded("trojan-plus")
-local has_singbox = api.finded_com("sing-box")
+local has_singbox = api.finded_com("singbox")
 local has_xray = api.finded_com("xray")
 local has_hysteria2 = api.finded_com("hysteria")
 local ss_type = {}
@@ -65,6 +43,9 @@ if has_hysteria2 then
 	table.insert(hysteria2_type, s)
 end
 
+m = Map(appname)
+m.redirect = api.url("node_subscribe")
+
 s = m:section(NamedSection, arg[1])
 s.addremove = false
 s.dynamic = false
@@ -75,12 +56,6 @@ o.rmempty = false
 o = s:option(TextValue, "url", translate("Subscribe URL"))
 o.rows = 5
 o.rmempty = false
-o.validate = function(self, value)
-	if not value or value == "" then
-		return nil, translate("URL cannot be empty")
-	end
-	return value:gsub("%s+", ""):gsub("%z", "")
-end
 
 o = s:option(Flag, "allowInsecure", translate("allowInsecure"), translate("Whether unsafe connections are allowed. When checked, Certificate validation will be skipped."))
 o.default = "0"

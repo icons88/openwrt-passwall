@@ -17,7 +17,7 @@ local function _n(name)
 end
 
 local x_ss_method_list = {
-	"none", "plain", "aes-128-gcm", "aes-256-gcm", "chacha20-poly1305", "xchacha20-poly1305", "2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm", "2022-blake3-chacha20-poly1305"
+	"aes-128-gcm", "aes-256-gcm", "chacha20-poly1305", "xchacha20-poly1305", "2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm", "2022-blake3-chacha20-poly1305"
 }
 
 local header_type_list = {
@@ -28,8 +28,6 @@ local header_type_list = {
 
 s.fields["type"]:value(type_name, "Xray")
 
-o = s:option(Flag, _n("custom"), translate("Use Custom Config"))
-
 o = s:option(ListValue, _n("protocol"), translate("Protocol"))
 o:value("vmess", "Vmess")
 o:value("vless", "VLESS")
@@ -38,11 +36,9 @@ o:value("socks", "Socks")
 o:value("shadowsocks", "Shadowsocks")
 o:value("trojan", "Trojan")
 o:value("dokodemo-door", "dokodemo-door")
-o:depends({ [_n("custom")] = false })
 
 o = s:option(Value, _n("port"), translate("Listen Port"))
 o.datatype = "port"
-o:depends({ [_n("custom")] = false })
 
 o = s:option(Flag, _n("auth"), translate("Auth"))
 o.validate = function(self, value, t)
@@ -155,26 +151,8 @@ o = s:option(Value, _n("reality_dest"), translate("Dest"))
 o.default = "google.com:443"
 o:depends({ [_n("reality")] = true })
 
-o = s:option(DynamicList, _n("reality_serverNames"), translate("serverNames"))
+o = s:option(Value, _n("reality_serverNames"), translate("serverNames"))
 o:depends({ [_n("reality")] = true })
-function o.write(self, section, value)
-	local t = {}
-	local t2 = {}
-	if type(value) == "table" then
-		local x
-		for _, x in ipairs(value) do
-			if x and #x > 0 then
-				if not t2[x] then
-					t2[x] = x
-					t[#t+1] = x
-				end
-			end
-		end
-	else
-		t = { value }
-	end
-	return DynamicList.write(self, section, t)
-end
 
 o = s:option(ListValue, _n("alpn"), translate("alpn"))
 o.default = "h2,http/1.1"
@@ -195,7 +173,6 @@ o:depends({ [_n("tls")] = true })
 
 o = s:option(FileUpload, _n("tls_certificateFile"), translate("Public key absolute path"), translate("as:") .. "/etc/ssl/fullchain.pem")
 o.default = m:get(s.section, "tls_certificateFile") or "/etc/config/ssl/" .. arg[1] .. ".pem"
-if o and o:formvalue(arg[1]) then o.default = o:formvalue(arg[1]) end
 o:depends({ [_n("tls")] = true, [_n("reality")] = false })
 o.validate = function(self, value, t)
 	if value and value ~= "" then
@@ -210,7 +187,6 @@ end
 
 o = s:option(FileUpload, _n("tls_keyFile"), translate("Private key absolute path"), translate("as:") .. "/etc/ssl/private.key")
 o.default = m:get(s.section, "tls_keyFile") or "/etc/config/ssl/" .. arg[1] .. ".key"
-if o and o:formvalue(arg[1]) then o.default = o:formvalue(arg[1]) end
 o:depends({ [_n("tls")] = true, [_n("reality")] = false })
 o.validate = function(self, value, t)
 	if value and value ~= "" then
@@ -347,7 +323,6 @@ o:depends({ [_n("transport")] = "grpc" })
 
 o = s:option(Flag, _n("acceptProxyProtocol"), translate("acceptProxyProtocol"), translate("Whether to receive PROXY protocol, when this node want to be fallback or forwarded by proxy, it must be enable, otherwise it cannot be used."))
 o.default = "0"
-o:depends({ [_n("custom")] = false })
 
 -- [[ Fallback部分 ]]--
 o = s:option(Flag, _n("fallback"), translate("Fallback"))
@@ -369,16 +344,14 @@ o.default = 0
 o:depends({ [_n("fallback")] = true })
 ]]--
 
-o = s:option(DynamicList, _n("fallback_list"), "Fallback", translate("format: dest,path,xver"))
+o = s:option(DynamicList, _n("fallback_list"), "Fallback", translate("dest,path"))
 o:depends({ [_n("fallback")] = true })
 
 o = s:option(Flag, _n("bind_local"), translate("Bind Local"), translate("When selected, it can only be accessed localhost."))
 o.default = "0"
-o:depends({ [_n("custom")] = false })
 
 o = s:option(Flag, _n("accept_lan"), translate("Accept LAN Access"), translate("When selected, it can accessed lan , this will not be safe!"))
 o.default = "0"
-o:depends({ [_n("custom")] = false })
 
 local nodes_table = {}
 for k, e in ipairs(api.get_valid_nodes()) do
@@ -396,7 +369,6 @@ o:value("_socks", translate("Custom Socks"))
 o:value("_http", translate("Custom HTTP"))
 o:value("_iface", translate("Custom Interface"))
 for k, v in pairs(nodes_table) do o:value(v.id, v.remarks) end
-o:depends({ [_n("custom")] = false })
 
 o = s:option(Value, _n("outbound_node_address"), translate("Address (Support Domain Name)"))
 o:depends({ [_n("outbound_node")] = "_socks"})
@@ -419,27 +391,6 @@ o:depends({ [_n("outbound_node")] = "_http"})
 o = s:option(Value, _n("outbound_node_iface"), translate("Interface"))
 o.default = "eth1"
 o:depends({ [_n("outbound_node")] = "_iface"})
-
-o = s:option(TextValue, _n("custom_config"), translate("Custom Config"))
-o.rows = 10
-o.wrap = "off"
-o:depends({ [_n("custom")] = true })
-o.validate = function(self, value, t)
-	if value and api.jsonc.parse(value) then
-		return value
-	else
-		return nil, translate("Must be JSON text!")
-	end
-end
-o.custom_cfgvalue = function(self, section, value)
-	local config_str = m:get(section, "config_str")
-	if config_str then
-		return api.base64Decode(config_str)
-	end
-end
-o.custom_write = function(self, section, value)
-	m:set(section, "config_str", api.base64Encode(value))
-end
 
 o = s:option(Flag, _n("log"), translate("Log"))
 o.default = "1"

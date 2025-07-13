@@ -35,69 +35,7 @@ function is_js_luci()
 end
 
 function is_old_uci()
-	return sys.call("grep -E 'require[ \t]*\"uci\"' /usr/lib/lua/luci/model/uci.lua >/dev/null 2>&1") == 0
-end
-
-function set_apply_on_parse(map)
-	if not map then
-		return
-	end
-	if is_js_luci() then
-		map.apply_on_parse = false
-		map.on_after_apply = function(self)
-			showMsg_Redirect(self.redirect, 3000)
-		end
-	end
-end
-
-function showMsg_Redirect(redirectUrl, delay)
-	local message = "PassWall " .. i18n.translate("Settings have been successfully saved and applied!")
-	luci.http.write([[
-		<script type="text/javascript">
-			document.addEventListener('DOMContentLoaded', function() {
-				// 创建遮罩层
-				var overlay = document.createElement('div');
-				overlay.style.position = 'fixed';
-				overlay.style.top = '0';
-				overlay.style.left = '0';
-				overlay.style.width = '100%';
-				overlay.style.height = '100%';
-				overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-				overlay.style.zIndex = '9999';
-				// 创建提示条
-				var messageDiv = document.createElement('div');
-				messageDiv.style.position = 'fixed';
-				messageDiv.style.top = '0';
-				messageDiv.style.left = '0';
-				messageDiv.style.width = '100%';
-				messageDiv.style.background = '#4caf50';
-				messageDiv.style.color = '#fff';
-				messageDiv.style.textAlign = 'center';
-				messageDiv.style.padding = '10px';
-				messageDiv.style.zIndex = '10000';
-				messageDiv.textContent = ']] .. message .. [[';
-				// 将遮罩层和提示条添加到页面
-				document.body.appendChild(overlay);
-				document.body.appendChild(messageDiv);
-				// 重定向或隐藏提示条和遮罩层
-				var redirectUrl = ']] .. (redirectUrl or "") .. [[';
-				var delay = ]] .. (delay or 3000) .. [[;
-				setTimeout(function() {
-					if (redirectUrl) {
-						window.location.href = redirectUrl;
-					} else {
-						if (messageDiv && messageDiv.parentNode) {
-							messageDiv.parentNode.removeChild(messageDiv);
-						}
-						if (overlay && overlay.parentNode) {
-							overlay.parentNode.removeChild(overlay);
-						}
-						window.location.href = window.location.href;
-					}
-				}, delay);
-			});
-		</script>
-	]])
+	return sys.call("grep 'require \"uci\"' /usr/lib/lua/luci/model/uci.lua >/dev/null 2>&1") == 0
 end
 
 function uci_save(cursor, config, commit, apply)
@@ -190,11 +128,6 @@ function base64Decode(text)
 	end
 end
 
-function base64Encode(text)
-	local result = nixio.bin.b64encode(text)
-	return result
-end
-
 --提取URL中的域名和端口(no ip)
 function get_domain_port_from_url(url)
 	local scheme, domain, port = string.match(url, "^(https?)://([%w%.%-]+):?(%d*)")
@@ -282,9 +215,8 @@ function url(...)
 	return require "luci.dispatcher".build_url(url)
 end
 
-function trim(text)
-	if not text or text == "" then return "" end
-	return text:match("^%s*(.-)%s*$")
+function trim(s)
+	return (s:gsub("^%s*(.-)%s*$", "%1"))
 end
 
 -- 分割字符串
@@ -390,7 +322,7 @@ function strToTable(str)
 end
 
 function is_normal_node(e)
-	if e and e.type and e.protocol and (e.protocol == "_balancing" or e.protocol == "_shunt" or e.protocol == "_iface" or e.protocol == "_urltest") then
+	if e and e.type and e.protocol and (e.protocol == "_balancing" or e.protocol == "_shunt" or e.protocol == "_iface") then
 		return false
 	end
 	return true
@@ -500,8 +432,7 @@ function get_valid_nodes()
 	uci:foreach(appname, "nodes", function(e)
 		e.id = e[".name"]
 		if e.type and e.remarks then
-			if (e.type == "sing-box" or e.type == "Xray") and e.protocol and
-			   (e.protocol == "_balancing" or e.protocol == "_shunt" or e.protocol == "_iface" or e.protocol == "_urltest") then
+			if e.protocol and (e.protocol == "_balancing" or e.protocol == "_shunt" or e.protocol == "_iface") then
 				local type = e.type
 				if type == "sing-box" then type = "Sing-Box" end
 				e["remark"] = "%s：[%s] " % {type .. " " .. i18n.translatef(e.protocol), e.remarks}
@@ -528,8 +459,6 @@ function get_valid_nodes()
 							protocol = "HY"
 						elseif protocol == "hysteria2" then
 							protocol = "HY2"
-						elseif protocol == "anytls" then
-							protocol = "AnyTLS"
 						else
 							protocol = protocol:gsub("^%l",string.upper)
 						end
@@ -553,8 +482,7 @@ end
 function get_node_remarks(n)
 	local remarks = ""
 	if n then
-		if (n.type == "sing-box" or n.type == "Xray") and n.protocol and
-		   (n.protocol == "_balancing" or n.protocol == "_shunt" or n.protocol == "_iface" or n.protocol == "_urltest") then
+		if n.protocol and (n.protocol == "_balancing" or n.protocol == "_shunt" or n.protocol == "_iface") then
 			remarks = "%s：[%s] " % {n.type .. " " .. i18n.translatef(n.protocol), n.remarks}
 		else
 			local type2 = n.type
@@ -564,22 +492,9 @@ function get_node_remarks(n)
 					protocol = "VMess"
 				elseif protocol == "vless" then
 					protocol = "VLESS"
-				elseif protocol == "shadowsocks" then
-					protocol = "SS"
-				elseif protocol == "shadowsocksr" then
-					protocol = "SSR"
-				elseif protocol == "wireguard" then
-					protocol = "WG"
-				elseif protocol == "hysteria" then
-					protocol = "HY"
-				elseif protocol == "hysteria2" then
-					protocol = "HY2"
-				elseif protocol == "anytls" then
-					protocol = "AnyTLS"
 				else
 					protocol = protocol:gsub("^%l",string.upper)
 				end
-				if type2 == "sing-box" then type2 = "Sing-Box" end
 				type2 = type2 .. " " .. protocol
 			end
 			remarks = "%s：[%s]" % {type2, n.remarks}
@@ -665,7 +580,7 @@ function clone(org)
 	return res
 end
 
-function get_bin_version_cache(file, cmd)
+local function get_bin_version_cache(file, cmd)
 	sys.call("mkdir -p /tmp/etc/passwall_tmp")
 	if fs.access(file) then
 		chmod_755(file)
@@ -867,7 +782,7 @@ local function auto_get_arch()
 		arch = "rockchip"
 	end
 
-	return trim(arch)
+	return util.trim(arch)
 end
 
 function parseURL(url)
@@ -920,8 +835,7 @@ local default_file_tree = {
 	armv5   = "arm.*5",
 	armv6   = "arm.*6[^4]*",
 	armv7   = "arm.*7",
-	armv8   = "arm64",
-	riscv64 = "riscv64"
+	armv8   = "arm64"
 }
 
 local function get_api_json(url)
@@ -1031,7 +945,7 @@ function to_download(app_name, url, size)
 
 	sys.call("/bin/rm -f /tmp/".. app_name .."_download.*")
 
-	local tmp_file = trim(util.exec("mktemp -u -t ".. app_name .."_download.XXXXXX"))
+	local tmp_file = util.trim(util.exec("mktemp -u -t ".. app_name .."_download.XXXXXX"))
 
 	if size then
 		local kb1 = get_free_space("/tmp")
@@ -1094,7 +1008,7 @@ function to_extract(app_name, file, subfix)
 		return {code = 1, error = i18n.translatef("%s not enough space.", "/tmp")}
 	end
 
-	local tmp_dir = trim(util.exec("mktemp -d -t ".. app_name .."_extract.XXXXXX"))
+	local tmp_dir = util.trim(util.exec("mktemp -d -t ".. app_name .."_extract.XXXXXX"))
 
 	local output = {}
 
@@ -1186,7 +1100,7 @@ end
 function get_version()
 	local version = sys.exec("opkg list-installed luci-app-passwall 2>/dev/null | awk '{print $3}'")
 	if not version or #version == 0 then
-		version = sys.exec("apk list luci-app-passwall 2>/dev/null | awk '/installed/ {print $1}' | cut -d'-' -f4-")
+		version = sys.exec("apk info -L luci-app-passwall 2>/dev/null | awk 'NR == 1 {print $1}' | cut -d'-' -f4-")
 	end
 	return version or ""
 end
@@ -1238,16 +1152,11 @@ function luci_types(id, m, s, type_name, option_prefix)
 				end
 
 				s.fields[key].cfgvalue = function(self, section)
-					-- 添加自定义 custom_cfgvalue 属性，如果有自定义的 custom_cfgvalue 函数，则使用自定义的 cfgvalue 逻辑
-					if self.custom_cfgvalue then
-						return self:custom_cfgvalue(section)
+					if self.rewrite_option then
+						return m:get(section, self.rewrite_option)
 					else
-						if self.rewrite_option then
-							return m:get(section, self.rewrite_option)
-						else
-							if self.option:find(option_prefix) == 1 then
-								return m:get(section, self.option:sub(1 + #option_prefix))
-							end
+						if self.option:find(option_prefix) == 1 then
+							return m:get(section, self.option:sub(1 + #option_prefix))
 						end
 					end
 				end
@@ -1269,16 +1178,11 @@ function luci_types(id, m, s, type_name, option_prefix)
 				end
 				s.fields[key].remove = function(self, section)
 					if s.fields["type"]:formvalue(id) == type_name then
-						-- 添加自定义 custom_remove 属性，如果有自定义的 custom_remove 函数，则使用自定义的 remove 逻辑
-						if self.custom_remove then
-							self:custom_remove(section)
+						if self.rewrite_option and rewrite_option_table[self.rewrite_option] == 1 then
+							m:del(section, self.rewrite_option)
 						else
-							if self.rewrite_option and rewrite_option_table[self.rewrite_option] == 1 then
-								m:del(section, self.rewrite_option)
-							else
-								if self.option:find(option_prefix) == 1 then
-									m:del(section, self.option:sub(1 + #option_prefix))
-								end
+							if self.option:find(option_prefix) == 1 then
+								m:del(section, self.option:sub(1 + #option_prefix))
 							end
 						end
 					end
@@ -1316,34 +1220,4 @@ function get_std_domain(domain)
 		end
 	end
 	return domain
-end
-
-function format_go_time(input)
-	input = input and trim(input)
-	local N = 0
-	if input and input:match("^%d+$") then
-		N = tonumber(input)
-	elseif input and input ~= "" then
-		for value, unit in input:gmatch("(%d+)%s*([hms])") do
-			value = tonumber(value)
-			if unit == "h" then
-				N = N + value * 3600
-			elseif unit == "m" then
-				N = N + value * 60
-			elseif unit == "s" then
-				N = N + value
-			end
-		end
-	end
-	if N <= 0 then
-		return "0s"
-	end
-	local result = ""
-	local h = math.floor(N / 3600)
-	local m = math.floor(N % 3600 / 60)
-	local s = N % 60
-	if h > 0 then result = result .. h .. "h" end
-	if m > 0 then result = result .. m .. "m" end
-	if s > 0 or result == "" then result = result .. s .. "s" end
-	return result
 end

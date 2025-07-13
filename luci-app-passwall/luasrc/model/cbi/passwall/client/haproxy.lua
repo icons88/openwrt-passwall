@@ -15,7 +15,6 @@ for k, e in ipairs(api.get_valid_nodes()) do
 end
 
 m = Map(appname)
-api.set_apply_on_parse(m)
 
 -- [[ Haproxy Settings ]]--
 s = m:section(TypedSection, "global_haproxy", translate("Basic Settings"))
@@ -28,21 +27,16 @@ o = s:option(Flag, "balancing_enable", translate("Enable Load Balancing"))
 o.rmempty = false
 o.default = false
 
----- Console Login Auth
-o = s:option(Flag, "console_auth", translate("Console Login Auth"))
-o.default = false
-o:depends("balancing_enable", true)
-
 ---- Console Username
 o = s:option(Value, "console_user", translate("Console Username"))
 o.default = ""
-o:depends("console_auth", true)
+o:depends("balancing_enable", true)
 
 ---- Console Password
 o = s:option(Value, "console_password", translate("Console Password"))
 o.password = true
 o.default = ""
-o:depends("console_auth", true)
+o:depends("balancing_enable", true)
 
 ---- Console Port
 o = s:option(Value, "console_port", translate("Console Port"), translate(
@@ -78,7 +72,7 @@ o = s:option(Value, "health_check_inter", translate("Health Check Inter"), trans
 o.default = "60"
 o:depends("balancing_enable", true)
 
-o = s:option(DummyValue, "health_check_tips", "　")
+o = s:option(DummyValue, "health_check_tips", " ")
 o.rawhtml = true
 o.cfgvalue = function(t, n)
 	return string.format('<span style="color: red">%s</span>', translate("When the URL test is used, the load balancing node will be converted into a Socks node. when node list set customizing, must be a Socks node, otherwise the health check will be invalid."))
@@ -157,7 +151,5 @@ o = s:option(ListValue, "backup", translate("Mode"))
 o:value(0, translate("Primary"))
 o:value(1, translate("Standby"))
 o.rmempty = false
-
-s:append(Template(appname .. "/haproxy/js"))
 
 return m

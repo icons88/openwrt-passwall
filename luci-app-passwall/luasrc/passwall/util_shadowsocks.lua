@@ -28,8 +28,6 @@ function gen_config_server(node)
 	return config
 end
 
-local plugin_sh, plugin_bin
-
 function gen_config(var)
 	local node_id = var["-node"]
 	if not node_id then
@@ -60,13 +58,6 @@ function gen_config(var)
 	end
 	local server = server_host
 
-	local plugin_file
-	if node.plugin and node.plugin ~= "" and node.plugin ~= "none" then
-		plugin_sh = var["-plugin_sh"] or ""
-		plugin_file = (plugin_sh ~="") and plugin_sh or node.plugin
-		plugin_bin = node.plugin
-	end
-
 	local config = {
 		server = server,
 		server_port = tonumber(server_port),
@@ -81,8 +72,10 @@ function gen_config(var)
 	}
 
 	if node.type == "SS" then
-		config.plugin = plugin_file or nil
-		config.plugin_opts = (plugin_file) and node.plugin_opts or nil
+		if node.plugin and node.plugin ~= "none" then
+			config.plugin = node.plugin
+			config.plugin_opts = node.plugin_opts or nil
+		end
 		config.mode = mode
 	elseif node.type == "SSR" then
 		config.protocol = node.protocol
@@ -98,8 +91,8 @@ function gen_config(var)
 					method = node.method,
 					password = node.password,
 					timeout = tonumber(node.timeout),
-					plugin = plugin_file or nil,
-					plugin_opts = (plugin_file) and node.plugin_opts or nil
+					plugin = (node.plugin and node.plugin ~= "none") and node.plugin or nil,
+					plugin_opts = (node.plugin and node.plugin ~= "none") and node.plugin_opts or nil
 				}
 			},
 			locals = {},
@@ -147,15 +140,5 @@ if arg[1] then
 	local func =_G[arg[1]]
 	if func then
 		print(func(api.get_function_args(arg)))
-		if plugin_sh and plugin_sh ~="" and plugin_bin then
-			local f = io.open(plugin_sh, "w")
-			f:write("#!/bin/sh\n")
-			f:write("export PATH=/usr/sbin:/usr/bin:/sbin:/bin:/root/bin:$PATH\n")
-			f:write(plugin_bin .. " $@ &\n")
-			f:write("echo $! > " .. plugin_sh:gsub("%.sh$", ".pid") .. "\n")
-			f:write("wait\n")
-			f:close()
-			luci.sys.call("chmod +x " .. plugin_sh)
-		end
 	end
 end
